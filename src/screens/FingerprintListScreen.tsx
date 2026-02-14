@@ -1,0 +1,463 @@
+import React, { useCallback, useState } from 'react';
+import {
+  View,
+  Text,
+  FlatList,
+  TouchableOpacity,
+  StyleSheet,
+  Alert,
+  ActivityIndicator,
+  TextInput,
+  Modal,
+  RefreshControl,
+} from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { Fingerprint, SensorConfig } from '../types';
+import {
+  listFingerprints,
+  deleteFingerprint,
+  renameFingerprint,
+  enrollFingerprint,
+  cancelEnrollment,
+  getStatus,
+} from '../services/api';
+import type { RootStackParamList } from '../navigation';
+
+type Props = NativeStackScreenProps<RootStackParamList, 'FingerprintList'>;
+
+export default function FingerprintListScreen({ route, navigation }: Props) {
+  const { sensor } = route.params;
+  const [fingerprints, setFingerprints] = useState<Fingerprint[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Fingerprint | null>(null);
+
+  const [renameModalVisible, setRenameModalVisible] = useState(false);
+  const [renameTarget, setRenameTarget] = useState<Fingerprint | null>(null);
+  const [newName, setNewName] = useState('');
+
+  const [enrollModalVisible, setEnrollModalVisible] = useState(false);
+  const [enrollName, setEnrollName] = useState('');
+  const [enrolling, setEnrolling] = useState(false);
+  const [enrollStatus, setEnrollStatus] = useState('');
+
+  React.useEffect(() => {
+    navigation.setOptions({ title: sensor.name });
+  }, [sensor.name, navigation]);
+
+  const fetchFingerprints = useCallback(async () => {
+    try {
+      setError(null);
+      const data = await listFingerprints(sensor);
+      setFingerprints(data);
+    } catch (e: any) {
+      setError(e.message || 'Failed to connect to sensor');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [sensor]);
+
+  useFocusEffect(
+    useCallback(() => {
+      setLoading(true);
+      fetchFingerprints();
+    }, [fetchFingerprints]),
+  );
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchFingerprints();
+  };
+
+  const handleDelete = (fp: Fingerprint) => {
+    setDeleteTarget(fp);
+    setDeleteModalVisible(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      await deleteFingerprint(sensor, deleteTarget.id);
+      setFingerprints((prev) => prev.filter((f) => f.id !== deleteTarget.id));
+      setDeleteModalVisible(false);
+      setDeleteTarget(null);
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
+    }
+  };
+
+  const openRenameModal = (fp: Fingerprint) => {
+    setRenameTarget(fp);
+    setNewName(fp.name);
+    setRenameModalVisible(true);
+  };
+
+  const handleRename = async () => {
+    if (!renameTarget || !newName.trim()) return;
+    try {
+      await renameFingerprint(sensor, renameTarget.id, newName.trim());
+      setFingerprints((prev) =>
+        prev.map((f) =>
+          f.id === renameTarget.id ? { ...f, name: newName.trim() } : f,
+        ),
+      );
+      setRenameModalVisible(false);
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
+    }
+  };
+
+  const getNextId = (): number => {
+    if (fingerprints.length === 0) return 1;
+    const usedIds = new Set(fingerprints.map((f) => f.id));
+    let nextId = 1;
+    while (usedIds.has(nextId)) {
+      nextId++;
+    }
+    return nextId;
+  };
+
+  const openEnrollModal = () => {
+    setEnrollName('');
+    setEnrolling(false);
+    setEnrollStatus('');
+    setEnrollModalVisible(true);
+  };
+
+  const handleEnroll = async () => {
+    if (!enrollName.trim()) {
+      Alert.alert('Error', 'Please enter a name for the fingerprint.');
+      return;
+    }
+
+    const nextId = getNextId();
+    setEnrolling(true);
+    setEnrollStatus('Starting enrollment...');
+
+    try {
+      await enrollFingerprint(sensor, nextId, enrollName.trim());
+      setEnrollStatus(
+        `Enrollment started for ID ${nextId}.\nPlace your finger on the sensor 5 times.\nThe LED will guide you.`,
+      );
+
+      const pollInterval = setInterval(async () => {
+        try {
+          const status = await getStatus(sensor);
+          if (!status.enrolling) {
+            clearInterval(pollInterval);
+            setEnrolling(false);
+            setEnrollModalVisible(false);
+            fetchFingerprints();
+          }
+        } catch {
+          clearInterval(pollInterval);
+          setEnrolling(false);
+          setEnrollStatus('Lost connection to sensor.');
+        }
+      }, 2000);
+    } catch (e: any) {
+      setEnrolling(false);
+      setEnrollStatus('');
+      Alert.alert('Error', e.message);
+    }
+  };
+
+  const handleCancelEnroll = async () => {
+    try {
+      await cancelEnrollment(sensor);
+    } catch {}
+    setEnrolling(false);
+    setEnrollModalVisible(false);
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color="#4a90d9" />
+        <Text style={styles.loadingText}>Connecting to sensor...</Text>
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.errorIcon}>⚠️</Text>
+        <Text style={styles.errorTitle}>Connection Error</Text>
+        <Text style={styles.errorText}>{error}</Text>
+        <TouchableOpacity style={styles.retryButton} onPress={() => { setLoading(true); fetchFingerprints(); }}>
+          <Text style={styles.retryText}>Retry</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      {fingerprints.length === 0 ? (
+        <View style={styles.center}>
+          <Text style={styles.emptyIcon}>👆</Text>
+          <Text style={styles.emptyTitle}>No Fingerprints</Text>
+          <Text style={styles.emptyText}>
+            Tap + to enroll a new fingerprint.
+          </Text>
+        </View>
+      ) : (
+        <FlatList
+          data={fingerprints}
+          keyExtractor={(item) => item.id.toString()}
+          contentContainerStyle={styles.list}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+          renderItem={({ item }) => (
+            <View style={styles.card}>
+              <View style={styles.cardInfo}>
+                <Text style={styles.cardName}>{item.name}</Text>
+                <Text style={styles.cardId}>ID {item.id}</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.actionButton}
+                onPress={() => openRenameModal(item)}
+              >
+                <Text style={styles.actionText}>Rename</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.actionButton, styles.deleteButton]}
+                onPress={() => handleDelete(item)}
+              >
+                <Text style={[styles.actionText, styles.deleteText]}>Delete</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        />
+      )}
+
+      <TouchableOpacity style={styles.fab} onPress={openEnrollModal}>
+        <Text style={styles.fabText}>+</Text>
+      </TouchableOpacity>
+
+      {/* Rename Modal */}
+      <Modal visible={renameModalVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modal}>
+            <Text style={styles.modalTitle}>Rename Fingerprint</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={newName}
+              onChangeText={setNewName}
+              placeholder="New name"
+              autoFocus
+            />
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.modalCancel}
+                onPress={() => setRenameModalVisible(false)}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.modalSave} onPress={handleRename}>
+                <Text style={styles.modalSaveText}>Rename</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Enroll Modal */}
+      <Modal visible={enrollModalVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modal}>
+            <Text style={styles.modalTitle}>Enroll New Fingerprint</Text>
+            {!enrolling ? (
+              <>
+                <Text style={styles.modalLabel}>
+                  Next available ID: {getNextId()}
+                </Text>
+                <TextInput
+                  style={styles.modalInput}
+                  value={enrollName}
+                  onChangeText={setEnrollName}
+                  placeholder="Name for this fingerprint"
+                  autoFocus
+                />
+                <View style={styles.modalButtons}>
+                  <TouchableOpacity
+                    style={styles.modalCancel}
+                    onPress={() => setEnrollModalVisible(false)}
+                  >
+                    <Text style={styles.modalCancelText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.modalSave}
+                    onPress={handleEnroll}
+                  >
+                    <Text style={styles.modalSaveText}>Start</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            ) : (
+              <>
+                <ActivityIndicator
+                  size="large"
+                  color="#4a90d9"
+                  style={{ marginVertical: 16 }}
+                />
+                <Text style={styles.enrollStatusText}>{enrollStatus}</Text>
+                <TouchableOpacity
+                  style={[styles.modalCancel, { marginTop: 20, alignSelf: 'center' }]}
+                  onPress={handleCancelEnroll}
+                >
+                  <Text style={styles.deleteText}>Cancel Enrollment</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <Modal visible={deleteModalVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modal}>
+            <Text style={styles.modalTitle}>Delete Fingerprint</Text>
+            <Text style={styles.modalLabel}>
+              Are you sure you want to delete "{deleteTarget?.name}" (ID {deleteTarget?.id})?
+            </Text>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.modalCancel}
+                onPress={() => setDeleteModalVisible(false)}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalSave, styles.modalDelete]}
+                onPress={confirmDelete}
+              >
+                <Text style={styles.modalSaveText}>Delete</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#f5f5f5' },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
+  list: { padding: 16 },
+  loadingText: { marginTop: 12, color: '#888', fontSize: 14 },
+  errorIcon: { fontSize: 48, marginBottom: 12 },
+  errorTitle: { fontSize: 20, fontWeight: '600', color: '#333', marginBottom: 8 },
+  errorText: { fontSize: 14, color: '#888', textAlign: 'center', marginBottom: 20 },
+  retryButton: {
+    backgroundColor: '#4a90d9',
+    borderRadius: 10,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+  },
+  retryText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  emptyIcon: { fontSize: 48, marginBottom: 16 },
+  emptyTitle: { fontSize: 20, fontWeight: '600', color: '#333', marginBottom: 8 },
+  emptyText: { fontSize: 14, color: '#888', textAlign: 'center' },
+  card: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  cardInfo: { flex: 1 },
+  cardName: { fontSize: 16, fontWeight: '600', color: '#333' },
+  cardId: { fontSize: 12, color: '#aaa', marginTop: 2 },
+  actionButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: '#e8e8e8',
+    marginLeft: 8,
+  },
+  deleteButton: { backgroundColor: '#fde8e8' },
+  actionText: { fontSize: 13, color: '#555', fontWeight: '500' },
+  deleteText: { color: '#d9534f', fontWeight: '500' },
+  fab: {
+    position: 'absolute',
+    right: 24,
+    bottom: 32,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#4a90d9',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  fabText: { fontSize: 28, color: '#fff', marginTop: -2 },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modal: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 24,
+    width: '85%',
+    maxWidth: 400,
+  },
+  modalTitle: { fontSize: 18, fontWeight: '600', color: '#333', marginBottom: 16 },
+  modalLabel: { fontSize: 14, color: '#888', marginBottom: 12 },
+  modalInput: {
+    backgroundColor: '#f5f5f5',
+    borderRadius: 10,
+    padding: 14,
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 20,
+    gap: 12,
+  },
+  modalCancel: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  modalCancelText: { color: '#888', fontSize: 15 },
+  modalSave: {
+    backgroundColor: '#4a90d9',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  modalSaveText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  modalDelete: { backgroundColor: '#d9534f' },
+  enrollStatusText: {
+    fontSize: 15,
+    color: '#555',
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+});
