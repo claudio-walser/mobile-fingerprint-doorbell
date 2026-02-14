@@ -14,13 +14,28 @@ let bonjour;
 let browser;
 const discoveredDevices = new Map();
 
+// Get icon path - handles both dev and packaged app
+function getIconPath() {
+  const iconFile = process.platform === 'win32' ? 'icon.ico' : 'icon.png';
+  
+  if (app.isPackaged) {
+    // In packaged app, use the unpacked path relative to resourcesPath
+    return path.join(process.resourcesPath, 'app.asar.unpacked', 'electron', 'icons', iconFile);
+  }
+  // In dev, relative to this file
+  return path.join(__dirname, 'icons', iconFile);
+}
+
 function createWindow() {
+  const iconPath = getIconPath();
+  console.log('Using icon path:', iconPath);
+  
   mainWindow = new BrowserWindow({
     width: 420,
     height: 800,
     minWidth: 360,
     minHeight: 600,
-    icon: path.join(__dirname, 'icons', 'icon.png'),
+    icon: iconPath,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,

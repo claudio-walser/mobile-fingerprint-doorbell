@@ -48,6 +48,9 @@
       "electron/**/*",
       "package.json"
     ],
+    "asarUnpack": [
+      "electron/icons/**/*"
+    ],
     "extraMetadata": {
       "main": "electron/main.js"
     },
