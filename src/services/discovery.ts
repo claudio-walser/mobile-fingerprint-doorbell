@@ -93,8 +93,13 @@ function createMobileDiscovery(): RawDiscoveryService {
   let deviceLostCallback: DeviceLostCallback | null = null;
 
   try {
-    const Zeroconf = require('react-native-zeroconf').default;
+    const ZeroconfModule = require('react-native-zeroconf');
+    console.log('[Discovery] Zeroconf module:', Object.keys(ZeroconfModule));
+    const Zeroconf = ZeroconfModule.default;
+    console.log('[Discovery] Zeroconf class:', Zeroconf);
     zeroconf = new Zeroconf();
+    console.log('[Discovery] Zeroconf instance:', zeroconf);
+    console.log('[Discovery] Zeroconf methods:', zeroconf ? Object.keys(zeroconf) : 'null');
 
     zeroconf.on('resolved', (service: any) => {
       console.log('[Discovery] Resolved service:', service.name, service.addresses);
@@ -141,7 +146,13 @@ function createMobileDiscovery(): RawDiscoveryService {
         return;
       }
       console.log('[Discovery] Starting scan for esphomelib._tcp');
-      zeroconf.scan('esphomelib', 'tcp', 'local.');
+      console.log('[Discovery] zeroconf.scan:', zeroconf.scan);
+      console.log('[Discovery] zeroconf.scan type:', typeof zeroconf.scan);
+      try {
+        zeroconf.scan('esphomelib', 'tcp', 'local.');
+      } catch (e) {
+        console.error('[Discovery] scan() error:', e);
+      }
     },
     stopDiscovery: () => {
       if (zeroconf) {
