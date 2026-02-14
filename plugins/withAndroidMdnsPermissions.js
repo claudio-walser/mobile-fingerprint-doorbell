@@ -26,6 +26,11 @@ function addMdnsPermissions(androidManifest) {
     }
   });
 
+  // Enable cleartext (HTTP) traffic for local network communication
+  if (manifest.application && manifest.application[0]) {
+    manifest.application[0].$['android:usesCleartextTraffic'] = 'true';
+  }
+
   return androidManifest;
 }
 
