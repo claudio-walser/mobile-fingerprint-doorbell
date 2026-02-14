@@ -34,11 +34,11 @@ jobs:
 
       - name: Build iOS app (unsigned)
         run: |
-          xcodebuild -workspace ios/fingerprintdoorbell.xcworkspace \
-            -scheme fingerprintdoorbell \
+          xcodebuild -workspace ios/FingerprintDoorbell.xcworkspace \
+            -scheme FingerprintDoorbell \
             -configuration Release \
             -sdk iphoneos \
-            -archivePath build/fingerprintdoorbell.xcarchive \
+            -archivePath build/FingerprintDoorbell.xcarchive \
             archive \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
@@ -47,14 +47,14 @@ jobs:
       - name: Create unsigned IPA
         run: |
           mkdir -p build/Payload
-          cp -r build/fingerprintdoorbell.xcarchive/Products/Applications/fingerprintdoorbell.app build/Payload/
-          cd build && zip -r fingerprintdoorbell-unsigned.ipa Payload
+          cp -r build/FingerprintDoorbell.xcarchive/Products/Applications/FingerprintDoorbell.app build/Payload/
+          cd build && zip -r FingerprintDoorbell-unsigned.ipa Payload
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ios-ipa
-          path: build/fingerprintdoorbell-unsigned.ipa
+          path: build/FingerprintDoorbell-unsigned.ipa
 
   release:
     needs: build
@@ -74,7 +74,7 @@ jobs:
       - name: Rename IPA
         run: |
           mkdir -p release
-          mv artifacts/fingerprintdoorbell-unsigned.ipa release/fingerprint-doorbell-${{ steps.version.outputs.VERSION }}-unsigned.ipa
+          mv artifacts/FingerprintDoorbell-unsigned.ipa release/fingerprint-doorbell-${{ steps.version.outputs.VERSION }}-unsigned.ipa
 
       - name: Upload to Release
         uses: softprops/action-gh-release@v2
