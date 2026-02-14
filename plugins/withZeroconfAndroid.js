@@ -56,30 +56,80 @@ function withZeroconfMainApplication(config) {
         'app/src/main/java/com/fingerprintdoorbell/app/MainApplication.kt'
       );
       
+      if (!fs.existsSync(mainApplicationPath)) {
+        console.warn('[withZeroconfAndroid] MainApplication.kt not found at:', mainApplicationPath);
+        return config;
+      }
+      
       let contents = fs.readFileSync(mainApplicationPath, 'utf-8');
       
       // Check if already added
       if (contents.includes('ZeroconfReactPackage')) {
+        console.log('[withZeroconfAndroid] ZeroconfReactPackage already present');
         return config;
       }
       
-      // Add import statement after other imports
-      const importStatement = 'import com.balthazargronon.RCTZeroconf.ZeroconfReactPackage';
-      const lastImportRegex = /(import expo\.modules\.ReactNativeHostWrapper)/;
-      contents = contents.replace(
-        lastImportRegex,
-        `${importStatement}\n$1`
-      );
+      console.log('[withZeroconfAndroid] Adding ZeroconfReactPackage to MainApplication.kt');
       
-      // Add package to getPackages() - Kotlin syntax
-      // Find the comment about manual packages and add after it
-      const packagesRegex = /(\/\/ Packages that cannot be autolinked yet can be added manually here.*\n.*\/\/ add\(MyReactNativePackage\(\)\))/;
-      contents = contents.replace(
-        packagesRegex,
-        `$1\n              add(ZeroconfReactPackage())`
-      );
+      // Add import statement - find the last import line and add after it
+      const importStatement = 'import com.balthazargronon.RCTZeroconf.ZeroconfReactPackage';
+      
+      // Find the line before "class MainApplication" and insert import there
+      const classRegex = /(\n)(class MainApplication)/;
+      if (classRegex.test(contents)) {
+        contents = contents.replace(
+          classRegex,
+          `\n${importStatement}\n\n$2`
+        );
+      } else {
+        // Fallback: add after the last import statement
+        const lines = contents.split('\n');
+        let lastImportIndex = -1;
+        for (let i = 0; i < lines.length; i++) {
+          if (lines[i].startsWith('import ')) {
+            lastImportIndex = i;
+          }
+        }
+        if (lastImportIndex >= 0) {
+          lines.splice(lastImportIndex + 1, 0, importStatement);
+          contents = lines.join('\n');
+        }
+      }
+      
+      // Add package to getPackages() - look for PackageList(...).packages.apply {
+      // or PackageList(...).packages pattern and add ZeroconfReactPackage
+      
+      // Pattern 1: packages.apply { ... } block - add inside the block
+      const applyBlockRegex = /(PackageList\([^)]*\)\.packages\.apply\s*\{[\s\S]*?)(\/\/[^\n]*\n\s*\/\/[^\n]*\n)(\s*\})/;
+      if (applyBlockRegex.test(contents)) {
+        contents = contents.replace(
+          applyBlockRegex,
+          '$1$2              add(ZeroconfReactPackage())\n$3'
+        );
+      } else {
+        // Pattern 2: Look for the comment about manual packages
+        const commentRegex = /(\/\/ Packages that cannot be autolinked[^\n]*\n[^\n]*\/\/ add\(MyReactNativePackage\(\)\))/;
+        if (commentRegex.test(contents)) {
+          contents = contents.replace(
+            commentRegex,
+            '$1\n              add(ZeroconfReactPackage())'
+          );
+        } else {
+          // Pattern 3: Find packages.apply { and add right after opening brace
+          const simpleApplyRegex = /(PackageList\([^)]*\)\.packages\.apply\s*\{)/;
+          if (simpleApplyRegex.test(contents)) {
+            contents = contents.replace(
+              simpleApplyRegex,
+              '$1\n              add(ZeroconfReactPackage())'
+            );
+          } else {
+            console.warn('[withZeroconfAndroid] Could not find packages block to modify');
+          }
+        }
+      }
       
       fs.writeFileSync(mainApplicationPath, contents);
+      console.log('[withZeroconfAndroid] Successfully modified MainApplication.kt');
       
       return config;
     },
