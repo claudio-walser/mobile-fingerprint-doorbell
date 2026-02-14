@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   TextInput,
   Modal,
   RefreshControl,
+  Platform,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -25,6 +26,18 @@ import {
 import type { RootStackParamList } from '../navigation';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'FingerprintList'>;
+
+// Hook to handle Escape key for closing modals (web/electron only)
+function useEscapeKey(isVisible: boolean, onClose: () => void) {
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !isVisible) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isVisible, onClose]);
+}
 
 export default function FingerprintListScreen({ route, navigation }: Props) {
   const { sensor } = route.params;
@@ -45,8 +58,26 @@ export default function FingerprintListScreen({ route, navigation }: Props) {
   const [enrolling, setEnrolling] = useState(false);
   const [enrollStatus, setEnrollStatus] = useState('');
 
+  // Escape key handlers for modals
+  useEscapeKey(deleteModalVisible, () => setDeleteModalVisible(false));
+  useEscapeKey(renameModalVisible, () => setRenameModalVisible(false));
+  useEscapeKey(enrollModalVisible, () => {
+    if (enrolling) {
+      handleCancelEnroll();
+    } else {
+      setEnrollModalVisible(false);
+    }
+  });
+
   React.useEffect(() => {
-    navigation.setOptions({ title: sensor.name });
+    navigation.setOptions({
+      title: sensor.name,
+      headerLeft: Platform.OS === 'web' ? () => (
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <Text style={styles.backArrow}>←</Text>
+        </TouchableOpacity>
+      ) : undefined,
+    });
   }, [sensor.name, navigation]);
 
   const fetchFingerprints = useCallback(async () => {
@@ -253,6 +284,7 @@ export default function FingerprintListScreen({ route, navigation }: Props) {
               onChangeText={setNewName}
               placeholder="New name"
               autoFocus
+              onSubmitEditing={handleRename}
             />
             <View style={styles.modalButtons}>
               <TouchableOpacity
@@ -285,6 +317,7 @@ export default function FingerprintListScreen({ route, navigation }: Props) {
                   onChangeText={setEnrollName}
                   placeholder="Name for this fingerprint"
                   autoFocus
+                  onSubmitEditing={handleEnroll}
                 />
                 <View style={styles.modalButtons}>
                   <TouchableOpacity
@@ -354,6 +387,8 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f5f5f5' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
   list: { padding: 16 },
+  backButton: { paddingHorizontal: 12, paddingVertical: 8 },
+  backArrow: { fontSize: 24, color: '#333' },
   loadingText: { marginTop: 12, color: '#888', fontSize: 14 },
   errorIcon: { fontSize: 48, marginBottom: 12 },
   errorTitle: { fontSize: 20, fontWeight: '600', color: '#333', marginBottom: 8 },

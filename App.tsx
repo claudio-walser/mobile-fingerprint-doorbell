@@ -21,6 +21,7 @@ export default function App() {
             headerTintColor: '#333',
             headerTitleStyle: { fontWeight: '600' },
             headerShadowVisible: false,
+            headerBackTitle: 'Back',
             contentStyle: { backgroundColor: '#f5f5f5' },
           }}
         >

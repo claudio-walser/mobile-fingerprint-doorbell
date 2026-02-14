@@ -8,6 +8,7 @@ import {
   Modal,
   TextInput,
   SectionList,
+  Platform,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -19,6 +20,18 @@ import type { RootStackParamList } from '../navigation';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'SensorList'>;
 
+// Hook to handle Escape key for closing modals (web/electron only)
+function useEscapeKey(isVisible: boolean, onClose: () => void) {
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !isVisible) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isVisible, onClose]);
+}
+
 export default function SensorListScreen({ navigation }: Props) {
   const [sensors, setSensors] = useState<SensorConfig[]>([]);
   const [discoveredDevices, setDiscoveredDevices] = useState<DiscoveredDevice[]>([]);
@@ -29,6 +42,10 @@ export default function SensorListScreen({ navigation }: Props) {
   const [addDiscoveredModalVisible, setAddDiscoveredModalVisible] = useState(false);
   const [selectedDiscovered, setSelectedDiscovered] = useState<DiscoveredDevice | null>(null);
   const [apiKeyInput, setApiKeyInput] = useState('');
+
+  // Escape key handlers for modals
+  useEscapeKey(deleteModalVisible, () => setDeleteModalVisible(false));
+  useEscapeKey(addDiscoveredModalVisible, () => setAddDiscoveredModalVisible(false));
 
   useFocusEffect(
     useCallback(() => {
@@ -115,7 +132,6 @@ export default function SensorListScreen({ navigation }: Props) {
     <TouchableOpacity
       style={styles.card}
       onPress={() => navigation.navigate('FingerprintList', { sensor: item })}
-      onLongPress={() => handleDelete(item)}
     >
       <View style={styles.cardContent}>
         <View style={styles.cardInfo}>
@@ -127,6 +143,12 @@ export default function SensorListScreen({ navigation }: Props) {
           onPress={() => navigation.navigate('SensorForm', { sensor: item })}
         >
           <Text style={styles.editText}>Edit</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.deleteButton}
+          onPress={() => handleDelete(item)}
+        >
+          <Text style={styles.deleteText}>Delete</Text>
         </TouchableOpacity>
       </View>
     </TouchableOpacity>
@@ -237,6 +259,7 @@ export default function SensorListScreen({ navigation }: Props) {
               placeholder="API Key (optional)"
               autoCapitalize="none"
               secureTextEntry
+              onSubmitEditing={confirmAddDiscovered}
             />
             <View style={styles.modalButtons}>
               <TouchableOpacity
@@ -302,6 +325,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#e8e8e8',
   },
   editText: { fontSize: 14, color: '#555', fontWeight: '500' },
+  deleteButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: '#fde8e8',
+    marginLeft: 8,
+  },
+  deleteText: { fontSize: 14, color: '#d9534f', fontWeight: '500' },
   addBadge: {
     paddingHorizontal: 14,
     paddingVertical: 8,

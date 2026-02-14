@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -25,9 +25,17 @@ export default function SensorFormScreen({ route, navigation }: Props) {
   const [ipAddress, setIpAddress] = useState(existing?.ipAddress ?? '');
   const [apiKey, setApiKey] = useState(existing?.apiKey ?? '');
 
+  const ipInputRef = useRef<TextInput>(null);
+  const apiKeyInputRef = useRef<TextInput>(null);
+
   useEffect(() => {
     navigation.setOptions({
       title: isEditing ? 'Edit Doorbell' : 'Add Doorbell',
+      headerLeft: Platform.OS === 'web' ? () => (
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <Text style={styles.backArrow}>←</Text>
+        </TouchableOpacity>
+      ) : undefined,
     });
   }, [isEditing, navigation]);
 
@@ -70,26 +78,34 @@ export default function SensorFormScreen({ route, navigation }: Props) {
           onChangeText={setName}
           placeholder="e.g. Front Door"
           autoFocus={!isEditing}
+          returnKeyType="next"
+          onSubmitEditing={() => ipInputRef.current?.focus()}
         />
 
         <Text style={styles.label}>IP Address</Text>
         <TextInput
+          ref={ipInputRef}
           style={styles.input}
           value={ipAddress}
           onChangeText={setIpAddress}
           placeholder="e.g. 192.168.1.100"
           keyboardType="url"
           autoCapitalize="none"
+          returnKeyType="next"
+          onSubmitEditing={() => apiKeyInputRef.current?.focus()}
         />
 
         <Text style={styles.label}>API Key (optional)</Text>
         <TextInput
+          ref={apiKeyInputRef}
           style={styles.input}
           value={apiKey}
           onChangeText={setApiKey}
           placeholder="Bearer token for authentication"
           autoCapitalize="none"
           secureTextEntry
+          returnKeyType="done"
+          onSubmitEditing={handleSave}
         />
 
         <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
@@ -103,6 +119,8 @@ export default function SensorFormScreen({ route, navigation }: Props) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f5f5f5' },
   scroll: { padding: 20 },
+  backButton: { paddingHorizontal: 12, paddingVertical: 8 },
+  backArrow: { fontSize: 24, color: '#333' },
   label: {
     fontSize: 13,
     fontWeight: '600',
