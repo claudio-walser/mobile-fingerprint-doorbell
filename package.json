@@ -56,19 +56,19 @@
         "AppImage"
       ],
       "category": "Utility",
-      "icon": "assets/icon.png"
+      "icon": "electron/icons"
     },
     "mac": {
       "target": [
         "dmg"
       ],
-      "icon": "assets/icon.png"
+      "icon": "electron/icons/icon.png"
     },
     "win": {
       "target": [
         "nsis"
       ],
-      "icon": "assets/icon.png"
+      "icon": "electron/icons/icon.ico"
     }
   }
 }

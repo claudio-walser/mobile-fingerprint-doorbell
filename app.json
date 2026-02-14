@@ -14,7 +14,10 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#7B2D8E"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
     },
     "ios": {
       "supportsTablet": true,
@@ -26,7 +29,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#4a90d9"
+        "backgroundColor": "#7B2D8E"
       },
       "edgeToEdgeEnabled": true,
       "package": "com.fingerprintdoorbell.app",
