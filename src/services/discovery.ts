@@ -15,37 +15,67 @@ interface DiscoveryService {
 
 // Mobile discovery using react-native-zeroconf
 function createMobileDiscovery(): DiscoveryService {
-  // Dynamically import to avoid issues on web/electron
-  const Zeroconf = require('react-native-zeroconf').default;
-  const zeroconf = new Zeroconf();
-  
+  let zeroconf: any = null;
   const discoveredDevices = new Map<string, DiscoveredDevice>();
   let deviceFoundCallback: DeviceCallback | null = null;
   let deviceLostCallback: DeviceLostCallback | null = null;
 
-  zeroconf.on('resolved', (service: any) => {
-    const device: DiscoveredDevice = {
-      name: service.name,
-      host: service.host,
-      ip: service.addresses?.[0] || service.host,
-      port: service.port,
-      txt: service.txt || {},
-    };
-    discoveredDevices.set(service.name, device);
-    deviceFoundCallback?.(device);
-  });
+  try {
+    // Dynamically import to avoid issues on web/electron
+    const Zeroconf = require('react-native-zeroconf').default;
+    zeroconf = new Zeroconf();
+    
+    zeroconf.on('resolved', (service: any) => {
+      console.log('[Discovery] Resolved service:', service.name, service.addresses);
+      const device: DiscoveredDevice = {
+        name: service.name,
+        host: service.host,
+        ip: service.addresses?.[0] || service.host,
+        port: service.port,
+        txt: service.txt || {},
+      };
+      discoveredDevices.set(service.name, device);
+      deviceFoundCallback?.(device);
+    });
 
-  zeroconf.on('removed', (name: string) => {
-    discoveredDevices.delete(name);
-    deviceLostCallback?.({ name });
-  });
+    zeroconf.on('removed', (name: string) => {
+      console.log('[Discovery] Service removed:', name);
+      discoveredDevices.delete(name);
+      deviceLostCallback?.({ name });
+    });
+
+    zeroconf.on('error', (error: any) => {
+      console.error('[Discovery] Error:', error);
+    });
+
+    zeroconf.on('start', () => {
+      console.log('[Discovery] Scan started');
+    });
+
+    zeroconf.on('stop', () => {
+      console.log('[Discovery] Scan stopped');
+    });
+
+    zeroconf.on('found', (name: string) => {
+      console.log('[Discovery] Found service (not yet resolved):', name);
+    });
+  } catch (error) {
+    console.error('[Discovery] Failed to initialize Zeroconf:', error);
+  }
 
   return {
     startDiscovery: () => {
+      if (!zeroconf) {
+        console.error('[Discovery] Zeroconf not initialized');
+        return;
+      }
+      console.log('[Discovery] Starting scan for esphomelib._tcp');
       zeroconf.scan('esphomelib', 'tcp', 'local.');
     },
     stopDiscovery: () => {
-      zeroconf.stop();
+      if (zeroconf) {
+        zeroconf.stop();
+      }
     },
     getDiscoveredDevices: async () => {
       return Array.from(discoveredDevices.values());
@@ -59,7 +89,9 @@ function createMobileDiscovery(): DiscoveryService {
     removeListeners: () => {
       deviceFoundCallback = null;
       deviceLostCallback = null;
-      zeroconf.removeAllListeners();
+      if (zeroconf) {
+        zeroconf.removeAllListeners();
+      }
     },
   };
 }
