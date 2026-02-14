@@ -1,0 +1,84 @@
+name: Build iOS App
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate iOS project
+        run: npx expo prebuild --platform ios
+
+      - name: Install CocoaPods dependencies
+        working-directory: ios
+        run: pod install
+
+      - name: Build iOS app (unsigned)
+        run: |
+          xcodebuild -workspace ios/fingerprintdoorbell.xcworkspace \
+            -scheme fingerprintdoorbell \
+            -configuration Release \
+            -sdk iphoneos \
+            -archivePath build/fingerprintdoorbell.xcarchive \
+            archive \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Create unsigned IPA
+        run: |
+          mkdir -p build/Payload
+          cp -r build/fingerprintdoorbell.xcarchive/Products/Applications/fingerprintdoorbell.app build/Payload/
+          cd build && zip -r fingerprintdoorbell-unsigned.ipa Payload
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-ipa
+          path: build/fingerprintdoorbell-unsigned.ipa
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ios-ipa
+          path: artifacts
+
+      - name: Get version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Rename IPA
+        run: |
+          mkdir -p release
+          mv artifacts/fingerprintdoorbell-unsigned.ipa release/fingerprint-doorbell-${{ steps.version.outputs.VERSION }}-unsigned.ipa
+
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
