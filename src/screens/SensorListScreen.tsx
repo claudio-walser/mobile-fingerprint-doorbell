@@ -13,7 +13,8 @@ import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { SensorConfig } from '../types';
 import { loadSensors, deleteSensor, addSensor } from '../services/storage';
-import { isElectron, getElectronAPI, DiscoveredDevice } from '../services/electron';
+import { DiscoveredDevice } from '../services/electron';
+import { getDiscoveryService, isDiscoverySupported } from '../services/discovery';
 import type { RootStackParamList } from '../navigation';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'SensorList'>;
@@ -35,18 +36,17 @@ export default function SensorListScreen({ navigation }: Props) {
     }, []),
   );
 
-  // Set up mDNS discovery for Electron
+  // Set up mDNS discovery for all platforms
   useEffect(() => {
-    if (!isElectron()) return;
+    if (!isDiscoverySupported()) return;
 
-    const api = getElectronAPI();
-    if (!api) return;
+    const discovery = getDiscoveryService();
 
     // Get initial devices
-    api.getDiscoveredDevices().then(setDiscoveredDevices);
+    discovery.getDiscoveredDevices().then(setDiscoveredDevices);
 
     // Listen for new devices
-    api.onDeviceFound((device) => {
+    discovery.onDeviceFound((device) => {
       setDiscoveredDevices((prev) => {
         const exists = prev.some((d) => d.name === device.name);
         if (exists) {
@@ -57,13 +57,16 @@ export default function SensorListScreen({ navigation }: Props) {
     });
 
     // Listen for lost devices
-    api.onDeviceLost((device) => {
+    discovery.onDeviceLost((device) => {
       setDiscoveredDevices((prev) => prev.filter((d) => d.name !== device.name));
     });
 
+    // Start discovery
+    discovery.startDiscovery();
+
     return () => {
-      api.removeDeviceFoundListener();
-      api.removeDeviceLostListener();
+      discovery.stopDiscovery();
+      discovery.removeListeners();
     };
   }, []);
 
@@ -155,7 +158,7 @@ export default function SensorListScreen({ navigation }: Props) {
           <Text style={styles.emptyIcon}>📡</Text>
           <Text style={styles.emptyTitle}>No Doorbells</Text>
           <Text style={styles.emptyText}>
-            {isElectron() 
+            {isDiscoverySupported() 
               ? 'Searching for ESPHome devices...\nOr add a doorbell manually.'
               : 'Add a fingerprint doorbell to get started.'}
           </Text>
