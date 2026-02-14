@@ -59,12 +59,12 @@ function withZeroconfMainApplication(config) {
       let contents = fs.readFileSync(mainApplicationPath, 'utf-8');
       
       // Check if already added
-      if (contents.includes('ZeroconfPackage')) {
+      if (contents.includes('ZeroconfReactPackage')) {
         return config;
       }
       
       // Add import statement after other imports
-      const importStatement = 'import com.balthazargronon.RCTZeroconf.ZeroconfPackage';
+      const importStatement = 'import com.balthazargronon.RCTZeroconf.ZeroconfReactPackage';
       const lastImportRegex = /(import expo\.modules\.ReactNativeHostWrapper)/;
       contents = contents.replace(
         lastImportRegex,
@@ -76,7 +76,7 @@ function withZeroconfMainApplication(config) {
       const packagesRegex = /(\/\/ Packages that cannot be autolinked yet can be added manually here.*\n.*\/\/ add\(MyReactNativePackage\(\)\))/;
       contents = contents.replace(
         packagesRegex,
-        `$1\n              add(ZeroconfPackage())`
+        `$1\n              add(ZeroconfReactPackage())`
       );
       
       fs.writeFileSync(mainApplicationPath, contents);
