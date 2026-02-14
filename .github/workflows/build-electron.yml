@@ -39,7 +39,7 @@ jobs:
         run: npm ci
 
       - name: Build Electron app
-        run: npm run electron:build-web && npx electron-builder --${{ matrix.platform }}
+        run: npm run electron:build-web && npx electron-builder --${{ matrix.platform }} --publish never
 
       - name: Get version from tag
         id: version
