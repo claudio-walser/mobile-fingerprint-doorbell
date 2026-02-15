@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu } = require('electron');
 const path = require('path');
 
 let Bonjour;
@@ -45,6 +45,9 @@ function createWindow() {
     title: 'Fingerprint Doorbell',
   });
 
+  // Hide the menu bar
+  Menu.setApplicationMenu(null);
+
   // Load the Expo web build or dev server
   const isDev = process.env.NODE_ENV === 'development';
   if (isDev) {
@@ -53,9 +56,6 @@ function createWindow() {
   } else {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }
-  
-  // Open DevTools to see console logs
-  mainWindow.webContents.openDevTools();
 
   mainWindow.on('closed', () => {
     mainWindow = null;
