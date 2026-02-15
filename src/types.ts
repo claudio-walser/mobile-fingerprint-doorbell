@@ -10,6 +10,12 @@ export interface Fingerprint {
   name: string;
 }
 
+export interface FingerprintTemplate {
+  id: number;
+  name: string;
+  template: string;  // base64 encoded template data
+}
+
 export interface SensorStatus {
   connected: boolean;
   enrolling: boolean;
@@ -17,6 +23,12 @@ export interface SensorStatus {
 }
 
 export interface EnrollResponse {
+  status: string;
+  id: number;
+  name: string;
+}
+
+export interface ImportResponse {
   status: string;
   id: number;
   name: string;

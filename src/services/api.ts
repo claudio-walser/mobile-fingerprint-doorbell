@@ -1,4 +1,4 @@
-import { SensorConfig, Fingerprint, SensorStatus, EnrollResponse } from '../types';
+import { SensorConfig, Fingerprint, SensorStatus, EnrollResponse, FingerprintTemplate, ImportResponse } from '../types';
 
 function buildHeaders(sensor: SensorConfig): Record<string, string> {
   const headers: Record<string, string> = {
@@ -99,4 +99,32 @@ export async function renameFingerprint(
   if (!response.ok) {
     throw new Error(`Failed to rename fingerprint: ${response.status}`);
   }
+}
+
+export async function exportTemplate(
+  sensor: SensorConfig,
+  id: number,
+): Promise<FingerprintTemplate> {
+  const response = await fetch(`${baseUrl(sensor)}/template?id=${id}`, {
+    headers: buildHeaders(sensor),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to export template: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function importTemplate(
+  sensor: SensorConfig,
+  template: FingerprintTemplate,
+): Promise<ImportResponse> {
+  const response = await fetch(`${baseUrl(sensor)}/template`, {
+    method: 'POST',
+    headers: buildHeaders(sensor),
+    body: JSON.stringify(template),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to import template: ${response.status}`);
+  }
+  return response.json();
 }

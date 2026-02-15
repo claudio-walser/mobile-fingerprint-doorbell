@@ -11,11 +11,12 @@ import {
   Modal,
   RefreshControl,
   Platform,
+  ScrollView,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Fingerprint, SensorConfig } from '../types';
+import { Fingerprint, SensorConfig, FingerprintTemplate } from '../types';
 import {
   listFingerprints,
   deleteFingerprint,
@@ -23,7 +24,10 @@ import {
   enrollFingerprint,
   cancelEnrollment,
   getStatus,
+  exportTemplate,
+  importTemplate,
 } from '../services/api';
+import { loadSensors } from '../services/storage';
 import type { RootStackParamList } from '../navigation';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'FingerprintList'>;
@@ -60,6 +64,12 @@ export default function FingerprintListScreen({ route, navigation }: Props) {
   const [enrolling, setEnrolling] = useState(false);
   const [enrollStatus, setEnrollStatus] = useState('');
 
+  const [copyModalVisible, setCopyModalVisible] = useState(false);
+  const [copyTarget, setCopyTarget] = useState<Fingerprint | null>(null);
+  const [otherSensors, setOtherSensors] = useState<SensorConfig[]>([]);
+  const [copying, setCopying] = useState(false);
+  const [copyStatus, setCopyStatus] = useState('');
+
   // Escape key handlers for modals
   useEscapeKey(deleteModalVisible, () => setDeleteModalVisible(false));
   useEscapeKey(renameModalVisible, () => setRenameModalVisible(false));
@@ -68,6 +78,11 @@ export default function FingerprintListScreen({ route, navigation }: Props) {
       handleCancelEnroll();
     } else {
       setEnrollModalVisible(false);
+    }
+  });
+  useEscapeKey(copyModalVisible, () => {
+    if (!copying) {
+      setCopyModalVisible(false);
     }
   });
 
@@ -208,6 +223,63 @@ export default function FingerprintListScreen({ route, navigation }: Props) {
     setEnrollModalVisible(false);
   };
 
+  const openCopyModal = async (fp: Fingerprint) => {
+    setCopyTarget(fp);
+    setCopying(false);
+    setCopyStatus('');
+    
+    try {
+      const allSensors = await loadSensors();
+      const others = allSensors.filter((s) => s.id !== sensor.id);
+      setOtherSensors(others);
+      setCopyModalVisible(true);
+    } catch (e: any) {
+      Alert.alert('Error', 'Failed to load sensors');
+    }
+  };
+
+  const handleCopyTo = async (targetSensor: SensorConfig) => {
+    if (!copyTarget) return;
+    
+    setCopying(true);
+    setCopyStatus(`Exporting from ${sensor.name}...`);
+    
+    try {
+      const template = await exportTemplate(sensor, copyTarget.id);
+      
+      setCopyStatus(`Importing to ${targetSensor.name}...`);
+      
+      const targetFingerprints = await listFingerprints(targetSensor);
+      const usedIds = new Set(targetFingerprints.map((f) => f.id));
+      let newId = copyTarget.id;
+      if (usedIds.has(newId)) {
+        newId = 1;
+        while (usedIds.has(newId)) {
+          newId++;
+        }
+      }
+      
+      const importData: FingerprintTemplate = {
+        id: newId,
+        name: template.name,
+        template: template.template,
+      };
+      
+      await importTemplate(targetSensor, importData);
+      
+      setCopying(false);
+      setCopyModalVisible(false);
+      Alert.alert(
+        'Success',
+        `Fingerprint "${template.name}" copied to ${targetSensor.name} as ID ${newId}.`
+      );
+    } catch (e: any) {
+      setCopying(false);
+      setCopyStatus('');
+      Alert.alert('Error', e.message || 'Failed to copy fingerprint');
+    }
+  };
+
   if (loading) {
     return (
       <View style={styles.center}>
@@ -259,6 +331,12 @@ export default function FingerprintListScreen({ route, navigation }: Props) {
                 onPress={() => openRenameModal(item)}
               >
                 <Text style={styles.actionText}>Rename</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.actionButton, styles.copyButton]}
+                onPress={() => openCopyModal(item)}
+              >
+                <Text style={styles.actionText}>Copy</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.actionButton, styles.deleteButton]}
@@ -381,6 +459,55 @@ export default function FingerprintListScreen({ route, navigation }: Props) {
           </View>
         </View>
       </Modal>
+
+      {/* Copy Modal */}
+      <Modal visible={copyModalVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modal}>
+            <Text style={styles.modalTitle}>Copy Fingerprint</Text>
+            {!copying ? (
+              <>
+                <Text style={styles.modalLabel}>
+                  Copy "{copyTarget?.name}" to another sensor:
+                </Text>
+                {otherSensors.length === 0 ? (
+                  <Text style={styles.noSensorsText}>
+                    No other sensors configured.
+                  </Text>
+                ) : (
+                  <ScrollView style={styles.sensorList}>
+                    {otherSensors.map((s) => (
+                      <TouchableOpacity
+                        key={s.id}
+                        style={styles.sensorOption}
+                        onPress={() => handleCopyTo(s)}
+                      >
+                        <Text style={styles.sensorOptionName}>{s.name}</Text>
+                        <Text style={styles.sensorOptionIp}>{s.ipAddress}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                )}
+                <TouchableOpacity
+                  style={[styles.modalCancel, { marginTop: 16, alignSelf: 'center' }]}
+                  onPress={() => setCopyModalVisible(false)}
+                >
+                  <Text style={styles.modalCancelText}>Cancel</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <ActivityIndicator
+                  size="large"
+                  color="#4a90d9"
+                  style={{ marginVertical: 16 }}
+                />
+                <Text style={styles.enrollStatusText}>{copyStatus}</Text>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -429,6 +556,7 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   deleteButton: { backgroundColor: '#fde8e8' },
+  copyButton: { backgroundColor: '#e8f4e8' },
   actionText: { fontSize: 13, color: '#555', fontWeight: '500' },
   deleteText: { color: '#d9534f', fontWeight: '500' },
   fab: {
@@ -495,5 +623,31 @@ const styles = StyleSheet.create({
     color: '#555',
     textAlign: 'center',
     lineHeight: 22,
+  },
+  noSensorsText: {
+    fontSize: 14,
+    color: '#888',
+    textAlign: 'center',
+    fontStyle: 'italic',
+    marginVertical: 16,
+  },
+  sensorList: {
+    maxHeight: 200,
+  },
+  sensorOption: {
+    backgroundColor: '#f5f5f5',
+    borderRadius: 10,
+    padding: 14,
+    marginBottom: 8,
+  },
+  sensorOptionName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#333',
+  },
+  sensorOptionIp: {
+    fontSize: 12,
+    color: '#888',
+    marginTop: 2,
   },
 });
