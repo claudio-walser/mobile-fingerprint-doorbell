@@ -11,6 +11,7 @@ import {
   Platform,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { SensorConfig } from '../types';
 import { loadSensors, deleteSensor, addSensor } from '../services/storage';
@@ -33,6 +34,7 @@ function useEscapeKey(isVisible: boolean, onClose: () => void) {
 }
 
 export default function SensorListScreen({ navigation }: Props) {
+  const insets = useSafeAreaInsets();
   const [sensors, setSensors] = useState<SensorConfig[]>([]);
   const [discoveredDevices, setDiscoveredDevices] = useState<DiscoveredDevice[]>([]);
   
@@ -209,7 +211,7 @@ export default function SensorListScreen({ navigation }: Props) {
       )}
       
       <TouchableOpacity
-        style={styles.fab}
+        style={[styles.fab, { bottom: 32 + insets.bottom }]}
         onPress={() => navigation.navigate('SensorForm', {})}
       >
         <Text style={styles.fabText}>+</Text>
@@ -343,7 +345,6 @@ const styles = StyleSheet.create({
   fab: {
     position: 'absolute',
     right: 24,
-    bottom: 32,
     width: 56,
     height: 56,
     borderRadius: 28,

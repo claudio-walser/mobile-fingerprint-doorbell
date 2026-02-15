@@ -13,6 +13,7 @@ import {
   Platform,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Fingerprint, SensorConfig } from '../types';
 import {
@@ -40,6 +41,7 @@ function useEscapeKey(isVisible: boolean, onClose: () => void) {
 }
 
 export default function FingerprintListScreen({ route, navigation }: Props) {
+  const insets = useSafeAreaInsets();
   const { sensor } = route.params;
   const [fingerprints, setFingerprints] = useState<Fingerprint[]>([]);
   const [loading, setLoading] = useState(true);
@@ -269,7 +271,7 @@ export default function FingerprintListScreen({ route, navigation }: Props) {
         />
       )}
 
-      <TouchableOpacity style={styles.fab} onPress={openEnrollModal}>
+      <TouchableOpacity style={[styles.fab, { bottom: 32 + insets.bottom }]} onPress={openEnrollModal}>
         <Text style={styles.fabText}>+</Text>
       </TouchableOpacity>
 
@@ -432,7 +434,6 @@ const styles = StyleSheet.create({
   fab: {
     position: 'absolute',
     right: 24,
-    bottom: 32,
     width: 56,
     height: 56,
     borderRadius: 28,
