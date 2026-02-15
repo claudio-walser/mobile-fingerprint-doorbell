@@ -1,9 +1,7 @@
 import { SensorConfig, Fingerprint, SensorStatus, EnrollResponse, FingerprintTemplate, ImportResponse } from '../types';
 
 function buildHeaders(sensor: SensorConfig): Record<string, string> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
+  const headers: Record<string, string> = {};
   if (sensor.apiKey) {
     headers['Authorization'] = `Bearer ${sensor.apiKey}`;
   }
@@ -118,10 +116,14 @@ export async function importTemplate(
   sensor: SensorConfig,
   template: FingerprintTemplate,
 ): Promise<ImportResponse> {
-  const response = await fetch(`${baseUrl(sensor)}/template`, {
+  const params = new URLSearchParams({
+    id: template.id.toString(),
+    name: template.name,
+    template: template.template,
+  });
+  const response = await fetch(`${baseUrl(sensor)}/template?${params.toString()}`, {
     method: 'POST',
     headers: buildHeaders(sensor),
-    body: JSON.stringify(template),
   });
   if (!response.ok) {
     throw new Error(`Failed to import template: ${response.status}`);
