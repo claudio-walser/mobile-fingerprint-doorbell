@@ -116,14 +116,17 @@ export async function importTemplate(
   sensor: SensorConfig,
   template: FingerprintTemplate,
 ): Promise<ImportResponse> {
-  const params = new URLSearchParams({
+  const body = new URLSearchParams({
     id: template.id.toString(),
     name: template.name,
     template: template.template,
   });
-  const response = await fetch(`${baseUrl(sensor)}/template?${params.toString()}`, {
+  const headers = buildHeaders(sensor);
+  headers['Content-Type'] = 'application/x-www-form-urlencoded';
+  const response = await fetch(`${baseUrl(sensor)}/template`, {
     method: 'POST',
-    headers: buildHeaders(sensor),
+    headers,
+    body: body.toString(),
   });
   if (!response.ok) {
     throw new Error(`Failed to import template: ${response.status}`);
