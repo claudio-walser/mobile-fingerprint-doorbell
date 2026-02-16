@@ -117,8 +117,8 @@ export async function importTemplate(
   template: FingerprintTemplate,
 ): Promise<ImportResponse> {
   // Send template in chunks to avoid URL/request size limits
-  // Each chunk is ~500 chars of base64 to stay well under limits
-  const CHUNK_SIZE = 500;
+  // Use small chunks (128 chars) because URL encoding can expand size ~3x
+  const CHUNK_SIZE = 128;
   const templateData = template.template;
   const totalChunks = Math.ceil(templateData.length / CHUNK_SIZE);
   
