@@ -76,6 +76,8 @@ export default function FingerprintListScreen({ route, navigation }: Props) {
   const [pairModalVisible, setPairModalVisible] = useState(false);
   const [pairPassword, setPairPassword] = useState('');
   const [pairing, setPairing] = useState(false);
+  const [pairOptionsVisible, setPairOptionsVisible] = useState(false);
+  const [unpairConfirmVisible, setUnpairConfirmVisible] = useState(false);
 
   // Escape key handlers for modals
   useEscapeKey(deleteModalVisible, () => setDeleteModalVisible(false));
@@ -97,6 +99,8 @@ export default function FingerprintListScreen({ route, navigation }: Props) {
       setPairModalVisible(false);
     }
   });
+  useEscapeKey(pairOptionsVisible, () => setPairOptionsVisible(false));
+  useEscapeKey(unpairConfirmVisible, () => setUnpairConfirmVisible(false));
 
   React.useEffect(() => {
     navigation.setOptions({
@@ -330,26 +334,34 @@ export default function FingerprintListScreen({ route, navigation }: Props) {
     }
   };
 
-  const handleUnpair = () => {
-    Alert.alert(
-      'Unpair Sensor',
-      'This will reset the sensor password to default. Anyone will be able to connect to this sensor until you pair it again.\n\nAre you sure?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Unpair',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await unpairSensor(sensor);
-              setSensorPaired(false);
-            } catch (e: any) {
-              Alert.alert('Error', e.message || 'Failed to unpair sensor');
-            }
-          },
-        },
-      ]
-    );
+  const handlePairingOptions = () => {
+    setPairOptionsVisible(true);
+  };
+
+  const handleChangePassword = () => {
+    setPairOptionsVisible(false);
+    setPairPassword('');
+    setPairModalVisible(true);
+  };
+
+  const handleUnpairOption = () => {
+    setPairOptionsVisible(false);
+    setUnpairConfirmVisible(true);
+  };
+
+  const confirmUnpair = async () => {
+    try {
+      await unpairSensor(sensor);
+      setSensorPaired(false);
+      setUnpairConfirmVisible(false);
+    } catch (e: any) {
+      // Show error in the modal or use a simple alert fallback
+      if (Platform.OS === 'web') {
+        window.alert(e.message || 'Failed to unpair sensor');
+      } else {
+        Alert.alert('Error', e.message || 'Failed to unpair sensor');
+      }
+    }
   };
 
   if (loading) {
@@ -431,6 +443,59 @@ export default function FingerprintListScreen({ route, navigation }: Props) {
             </View>
           </View>
         </Modal>
+
+        {/* Pair Options Modal */}
+        <Modal visible={pairOptionsVisible} transparent animationType="fade">
+          <View style={styles.modalOverlay}>
+            <View style={styles.modal}>
+              <Text style={styles.modalTitle}>Sensor Pairing</Text>
+              <TouchableOpacity
+                style={styles.optionButton}
+                onPress={handleChangePassword}
+              >
+                <Text style={styles.optionButtonText}>Change Password</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.optionButton, styles.optionButtonDestructive]}
+                onPress={handleUnpairOption}
+              >
+                <Text style={styles.optionButtonTextDestructive}>Unpair Sensor</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.modalCancel}
+                onPress={() => setPairOptionsVisible(false)}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Unpair Confirm Modal */}
+        <Modal visible={unpairConfirmVisible} transparent animationType="fade">
+          <View style={styles.modalOverlay}>
+            <View style={styles.modal}>
+              <Text style={styles.modalTitle}>Unpair Sensor</Text>
+              <Text style={styles.modalLabel}>
+                This will reset the sensor password to default. Anyone will be able to connect to this sensor until you pair it again.
+              </Text>
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={styles.modalCancel}
+                  onPress={() => setUnpairConfirmVisible(false)}
+                >
+                  <Text style={styles.modalCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalSave, styles.modalDestructive]}
+                  onPress={confirmUnpair}
+                >
+                  <Text style={styles.modalSaveText}>Unpair</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
       </View>
     );
   }
@@ -489,7 +554,7 @@ export default function FingerprintListScreen({ route, navigation }: Props) {
       {sensorPaired && (
         <TouchableOpacity 
           style={[styles.unpairButton, { bottom: 100 + insets.bottom }]} 
-          onPress={handleUnpair}
+          onPress={handlePairingOptions}
         >
           <Text style={styles.unpairText}>🔓</Text>
         </TouchableOpacity>
@@ -647,6 +712,101 @@ export default function FingerprintListScreen({ route, navigation }: Props) {
                 <Text style={styles.enrollStatusText}>{copyStatus}</Text>
               </>
             )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Pair Options Modal */}
+      <Modal visible={pairOptionsVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modal}>
+            <Text style={styles.modalTitle}>Sensor Pairing</Text>
+            <TouchableOpacity
+              style={styles.optionButton}
+              onPress={handleChangePassword}
+            >
+              <Text style={styles.optionButtonText}>Change Password</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.optionButton, styles.optionButtonDestructive]}
+              onPress={handleUnpairOption}
+            >
+              <Text style={styles.optionButtonTextDestructive}>Unpair Sensor</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.modalCancel}
+              onPress={() => setPairOptionsVisible(false)}
+            >
+              <Text style={styles.modalCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Unpair Confirm Modal */}
+      <Modal visible={unpairConfirmVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modal}>
+            <Text style={styles.modalTitle}>Unpair Sensor</Text>
+            <Text style={styles.modalLabel}>
+              This will reset the sensor password to default. Anyone will be able to connect to this sensor until you pair it again.
+            </Text>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.modalCancel}
+                onPress={() => setUnpairConfirmVisible(false)}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalSave, styles.modalDestructive]}
+                onPress={confirmUnpair}
+              >
+                <Text style={styles.modalSaveText}>Unpair</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Change Password Modal */}
+      <Modal visible={pairModalVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modal}>
+            <Text style={styles.modalTitle}>Change Sensor Password</Text>
+            <Text style={styles.modalLabel}>
+              Enter a new password (1-8 hex digits) to secure this sensor.
+            </Text>
+            <TextInput
+              style={styles.modalInput}
+              value={pairPassword}
+              onChangeText={setPairPassword}
+              placeholder="e.g. 12345678"
+              autoCapitalize="characters"
+              autoFocus
+              maxLength={8}
+              onSubmitEditing={handlePair}
+            />
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.modalCancel}
+                onPress={() => setPairModalVisible(false)}
+                disabled={pairing}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.modalSave}
+                onPress={handlePair}
+                disabled={pairing}
+              >
+                {pairing ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.modalSaveText}>Save</Text>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -815,4 +975,27 @@ const styles = StyleSheet.create({
     borderColor: '#ddd',
   },
   unpairText: { fontSize: 20 },
+  optionButton: {
+    backgroundColor: '#f5f5f5',
+    borderRadius: 10,
+    padding: 14,
+    marginBottom: 10,
+    alignItems: 'center',
+  },
+  optionButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#333',
+  },
+  optionButtonDestructive: {
+    backgroundColor: '#fff5f5',
+  },
+  optionButtonTextDestructive: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#d9534f',
+  },
+  modalDestructive: {
+    backgroundColor: '#d9534f',
+  },
 });
