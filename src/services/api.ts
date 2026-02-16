@@ -99,6 +99,33 @@ export async function renameFingerprint(
   }
 }
 
+export async function pairSensor(
+  sensor: SensorConfig,
+  password: string,
+): Promise<void> {
+  const response = await fetch(
+    `${baseUrl(sensor)}/pair?password=${encodeURIComponent(password)}`,
+    {
+      method: 'POST',
+      headers: buildHeaders(sensor),
+    },
+  );
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+    throw new Error(error.error || `Failed to pair sensor: ${response.status}`);
+  }
+}
+
+export async function unpairSensor(sensor: SensorConfig): Promise<void> {
+  const response = await fetch(`${baseUrl(sensor)}/unpair`, {
+    method: 'POST',
+    headers: buildHeaders(sensor),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to unpair sensor: ${response.status}`);
+  }
+}
+
 export async function exportTemplate(
   sensor: SensorConfig,
   id: number,

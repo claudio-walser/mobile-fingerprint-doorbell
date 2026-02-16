@@ -18,6 +18,7 @@ export interface FingerprintTemplate {
 
 export interface SensorStatus {
   connected: boolean;
+  paired: boolean;
   enrolling: boolean;
   count: number;
 }

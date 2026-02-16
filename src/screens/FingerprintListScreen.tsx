@@ -26,6 +26,8 @@ import {
   getStatus,
   exportTemplate,
   importTemplate,
+  pairSensor,
+  unpairSensor,
 } from '../services/api';
 import { loadSensors } from '../services/storage';
 import type { RootStackParamList } from '../navigation';
@@ -70,6 +72,11 @@ export default function FingerprintListScreen({ route, navigation }: Props) {
   const [copying, setCopying] = useState(false);
   const [copyStatus, setCopyStatus] = useState('');
 
+  const [sensorPaired, setSensorPaired] = useState<boolean | null>(null);
+  const [pairModalVisible, setPairModalVisible] = useState(false);
+  const [pairPassword, setPairPassword] = useState('');
+  const [pairing, setPairing] = useState(false);
+
   // Escape key handlers for modals
   useEscapeKey(deleteModalVisible, () => setDeleteModalVisible(false));
   useEscapeKey(renameModalVisible, () => setRenameModalVisible(false));
@@ -83,6 +90,11 @@ export default function FingerprintListScreen({ route, navigation }: Props) {
   useEscapeKey(copyModalVisible, () => {
     if (!copying) {
       setCopyModalVisible(false);
+    }
+  });
+  useEscapeKey(pairModalVisible, () => {
+    if (!pairing) {
+      setPairModalVisible(false);
     }
   });
 
@@ -100,8 +112,15 @@ export default function FingerprintListScreen({ route, navigation }: Props) {
   const fetchFingerprints = useCallback(async () => {
     try {
       setError(null);
-      const data = await listFingerprints(sensor);
-      setFingerprints(data);
+      const status = await getStatus(sensor);
+      setSensorPaired(status.paired);
+      
+      if (status.paired) {
+        const data = await listFingerprints(sensor);
+        setFingerprints(data);
+      } else {
+        setFingerprints([]);
+      }
     } catch (e: any) {
       setError(e.message || 'Failed to connect to sensor');
     } finally {
@@ -280,6 +299,59 @@ export default function FingerprintListScreen({ route, navigation }: Props) {
     }
   };
 
+  const openPairModal = () => {
+    setPairPassword('');
+    setPairing(false);
+    setPairModalVisible(true);
+  };
+
+  const handlePair = async () => {
+    if (!pairPassword.trim()) {
+      Alert.alert('Error', 'Please enter a password (8 hex digits, e.g. 12345678)');
+      return;
+    }
+    
+    // Validate hex format
+    if (!/^[0-9a-fA-F]{1,8}$/.test(pairPassword.trim())) {
+      Alert.alert('Error', 'Password must be 1-8 hex digits (0-9, A-F)');
+      return;
+    }
+    
+    setPairing(true);
+    try {
+      await pairSensor(sensor, pairPassword.trim());
+      setPairModalVisible(false);
+      setSensorPaired(true);
+      fetchFingerprints();
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Failed to pair sensor');
+    } finally {
+      setPairing(false);
+    }
+  };
+
+  const handleUnpair = () => {
+    Alert.alert(
+      'Unpair Sensor',
+      'This will reset the sensor password to default. Anyone will be able to connect to this sensor until you pair it again.\n\nAre you sure?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Unpair',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await unpairSensor(sensor);
+              setSensorPaired(false);
+            } catch (e: any) {
+              Alert.alert('Error', e.message || 'Failed to unpair sensor');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   if (loading) {
     return (
       <View style={styles.center}>
@@ -298,6 +370,67 @@ export default function FingerprintListScreen({ route, navigation }: Props) {
         <TouchableOpacity style={styles.retryButton} onPress={() => { setLoading(true); fetchFingerprints(); }}>
           <Text style={styles.retryText}>Retry</Text>
         </TouchableOpacity>
+      </View>
+    );
+  }
+
+  // Show pairing screen if sensor is not paired
+  if (sensorPaired === false) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.center}>
+          <Text style={styles.pairIcon}>🔐</Text>
+          <Text style={styles.pairTitle}>Sensor Not Paired</Text>
+          <Text style={styles.pairText}>
+            This sensor is not secured with a password. Pair it to prevent unauthorized sensor swaps.
+          </Text>
+          <TouchableOpacity style={styles.pairButton} onPress={openPairModal}>
+            <Text style={styles.pairButtonText}>Pair Sensor</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Pair Modal */}
+        <Modal visible={pairModalVisible} transparent animationType="fade">
+          <View style={styles.modalOverlay}>
+            <View style={styles.modal}>
+              <Text style={styles.modalTitle}>Pair Sensor</Text>
+              <Text style={styles.modalLabel}>
+                Enter a password (1-8 hex digits) to secure this sensor. 
+                You'll need this password if you ever want to use a different sensor.
+              </Text>
+              <TextInput
+                style={styles.modalInput}
+                value={pairPassword}
+                onChangeText={setPairPassword}
+                placeholder="e.g. 12345678"
+                autoCapitalize="characters"
+                autoFocus
+                maxLength={8}
+                onSubmitEditing={handlePair}
+              />
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={styles.modalCancel}
+                  onPress={() => setPairModalVisible(false)}
+                  disabled={pairing}
+                >
+                  <Text style={styles.modalCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.modalSave}
+                  onPress={handlePair}
+                  disabled={pairing}
+                >
+                  {pairing ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={styles.modalSaveText}>Pair</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
       </View>
     );
   }
@@ -352,6 +485,15 @@ export default function FingerprintListScreen({ route, navigation }: Props) {
       <TouchableOpacity style={[styles.fab, { bottom: 32 + insets.bottom }]} onPress={openEnrollModal}>
         <Text style={styles.fabText}>+</Text>
       </TouchableOpacity>
+
+      {sensorPaired && (
+        <TouchableOpacity 
+          style={[styles.unpairButton, { bottom: 100 + insets.bottom }]} 
+          onPress={handleUnpair}
+        >
+          <Text style={styles.unpairText}>🔓</Text>
+        </TouchableOpacity>
+      )}
 
       {/* Rename Modal */}
       <Modal visible={renameModalVisible} transparent animationType="fade">
@@ -650,4 +792,27 @@ const styles = StyleSheet.create({
     color: '#888',
     marginTop: 2,
   },
+  pairIcon: { fontSize: 48, marginBottom: 16 },
+  pairTitle: { fontSize: 20, fontWeight: '600', color: '#333', marginBottom: 8 },
+  pairText: { fontSize: 14, color: '#888', textAlign: 'center', marginBottom: 24, paddingHorizontal: 16 },
+  pairButton: {
+    backgroundColor: '#4a90d9',
+    borderRadius: 10,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+  },
+  pairButtonText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  unpairButton: {
+    position: 'absolute',
+    right: 24,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#f5f5f5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  unpairText: { fontSize: 20 },
 });
