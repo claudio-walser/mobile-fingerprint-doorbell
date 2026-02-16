@@ -117,17 +117,11 @@ export async function importTemplate(
   template: FingerprintTemplate,
 ): Promise<ImportResponse> {
   // Send template in chunks to avoid URL/request size limits
-  // Use small chunks (128 chars) because URL encoding can expand size ~3x
   const CHUNK_SIZE = 128;
   const templateData = template.template;
   const totalChunks = Math.ceil(templateData.length / CHUNK_SIZE);
-  
-  console.log('Import template: id=%d, name=%s, total_len=%d, chunks=%d', 
-    template.id, template.name, templateData.length, totalChunks);
-  
   const headers = buildHeaders(sensor);
   
-  // Send chunks
   for (let i = 0; i < totalChunks; i++) {
     const chunk = templateData.substring(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
     const isLast = (i === totalChunks - 1);
@@ -139,26 +133,20 @@ export async function importTemplate(
       data: chunk,
     });
     
-    // Include name only on first chunk
     if (i === 0) {
       params.set('name', template.name);
     }
     
     const url = `${baseUrl(sensor)}/template/chunk?${params.toString()}`;
-    console.log('Sending chunk %d/%d, len=%d', i + 1, totalChunks, chunk.length);
-    
     const response = await fetch(url, {
       method: 'POST',
       headers,
     });
     
     if (!response.ok) {
-      const text = await response.text();
-      console.error('Chunk %d failed:', i, response.status, text);
       throw new Error(`Failed to import template chunk ${i + 1}: ${response.status}`);
     }
     
-    // Last chunk returns the final result
     if (isLast) {
       return response.json();
     }

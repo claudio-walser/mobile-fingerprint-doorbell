@@ -265,13 +265,6 @@ export default function FingerprintListScreen({ route, navigation }: Props) {
         template: template.template,
       };
       
-      console.log('Importing template:', {
-        targetIp: targetSensor.ipAddress,
-        id: newId,
-        name: template.name,
-        templateLen: template.template.length,
-      });
-      
       await importTemplate(targetSensor, importData);
       
       setCopying(false);
