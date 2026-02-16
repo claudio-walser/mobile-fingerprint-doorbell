@@ -17,8 +17,7 @@ const discoveredDevices = new Map();
 // Get icon path - handles both dev and packaged app
 function getIconPath() {
   const iconFile = process.platform === 'win32' ? 'icon.ico' : 'icon.png';
-  
-  if (app.isPackaged) {
+   if (app.isPackaged) {
     // In packaged app, use the unpacked path relative to resourcesPath
     return path.join(process.resourcesPath, 'app.asar.unpacked', 'electron', 'icons', iconFile);
   }
@@ -29,7 +28,7 @@ function getIconPath() {
 function createWindow() {
   const iconPath = getIconPath();
   console.log('Using icon path:', iconPath);
-  
+
   mainWindow = new BrowserWindow({
     width: 420,
     height: 800,
@@ -46,7 +45,7 @@ function createWindow() {
   });
 
   // Hide the menu bar
-  //Menu.setApplicationMenu(null);
+  Menu.setApplicationMenu(null);
 
   // Load the Expo web build or dev server
   const isDev = process.env.NODE_ENV === 'development';
