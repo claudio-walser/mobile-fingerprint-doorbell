@@ -116,26 +116,53 @@ export async function importTemplate(
   sensor: SensorConfig,
   template: FingerprintTemplate,
 ): Promise<ImportResponse> {
-  const body = new URLSearchParams({
-    id: template.id.toString(),
-    name: template.name,
-    template: template.template,
-  });
-  const url = `${baseUrl(sensor)}/template`;
-  console.log('Import request to:', url, 'body length:', body.toString().length);
+  // Send template in chunks to avoid URL/request size limits
+  // Each chunk is ~500 chars of base64 to stay well under limits
+  const CHUNK_SIZE = 500;
+  const templateData = template.template;
+  const totalChunks = Math.ceil(templateData.length / CHUNK_SIZE);
+  
+  console.log('Import template: id=%d, name=%s, total_len=%d, chunks=%d', 
+    template.id, template.name, templateData.length, totalChunks);
   
   const headers = buildHeaders(sensor);
-  headers['Content-Type'] = 'application/x-www-form-urlencoded';
   
-  const response = await fetch(url, {
-    method: 'POST',
-    headers,
-    body: body.toString(),
-  });
-  if (!response.ok) {
-    const text = await response.text();
-    console.error('Import failed:', response.status, text);
-    throw new Error(`Failed to import template: ${response.status}`);
+  // Send chunks
+  for (let i = 0; i < totalChunks; i++) {
+    const chunk = templateData.substring(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+    const isLast = (i === totalChunks - 1);
+    
+    const params = new URLSearchParams({
+      id: template.id.toString(),
+      chunk: i.toString(),
+      total: totalChunks.toString(),
+      data: chunk,
+    });
+    
+    // Include name only on first chunk
+    if (i === 0) {
+      params.set('name', template.name);
+    }
+    
+    const url = `${baseUrl(sensor)}/template/chunk?${params.toString()}`;
+    console.log('Sending chunk %d/%d, len=%d', i + 1, totalChunks, chunk.length);
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+    });
+    
+    if (!response.ok) {
+      const text = await response.text();
+      console.error('Chunk %d failed:', i, response.status, text);
+      throw new Error(`Failed to import template chunk ${i + 1}: ${response.status}`);
+    }
+    
+    // Last chunk returns the final result
+    if (isLast) {
+      return response.json();
+    }
   }
-  return response.json();
+  
+  throw new Error('No chunks to send');
 }
