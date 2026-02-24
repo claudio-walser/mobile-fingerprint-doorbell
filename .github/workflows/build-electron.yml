@@ -18,6 +18,11 @@ jobs:
             artifact: electron-dist/*.AppImage
           - os: macos-latest
             platform: mac
+            arch: arm64
+            artifact: electron-dist/*.dmg
+          - os: macos-latest
+            platform: mac
+            arch: x64
             artifact: electron-dist/*.dmg
           - os: windows-latest
             platform: win
@@ -39,7 +44,7 @@ jobs:
         run: npm ci
 
       - name: Build Electron app
-        run: npm run electron:build-web && npx electron-builder --${{ matrix.platform }} --publish never
+        run: npm run electron:build-web && npx electron-builder --${{ matrix.platform }} ${{ matrix.arch && format('--{0}', matrix.arch) || '' }} --publish never
 
       - name: Get version from tag
         id: version
@@ -49,7 +54,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: electron-${{ matrix.platform }}
+          name: electron-${{ matrix.platform }}${{ matrix.arch && format('-{0}', matrix.arch) || '' }}
           path: ${{ matrix.artifact }}
 
   release:
@@ -70,7 +75,8 @@ jobs:
         run: |
           mkdir -p release
           find artifacts -name "*.AppImage" -exec mv {} release/fingerprint-doorbell-${{ steps.version.outputs.VERSION }}.AppImage \;
-          find artifacts -name "*.dmg" -exec mv {} release/fingerprint-doorbell-${{ steps.version.outputs.VERSION }}.dmg \;
+          find artifacts/electron-mac-arm64 -name "*.dmg" -exec mv {} release/fingerprint-doorbell-${{ steps.version.outputs.VERSION }}-arm64.dmg \; 2>/dev/null || true
+          find artifacts/electron-mac-x64 -name "*.dmg" -exec mv {} release/fingerprint-doorbell-${{ steps.version.outputs.VERSION }}-x64.dmg \; 2>/dev/null || true
           find artifacts -name "*.exe" -exec mv {} release/fingerprint-doorbell-${{ steps.version.outputs.VERSION }}.exe \;
 
       - name: Upload to Release
